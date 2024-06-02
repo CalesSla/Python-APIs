@@ -4,8 +4,15 @@ from pydantic import BaseModel
 from typing import Optional
 from random import randrange
 import requests
-
-
+import pickle
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+import psycopg2
+from  psycopg2.extras import RealDictCursor
+import os
+import time
+from dotenv import load_dotenv, find_dotenv
+_ = load_dotenv(find_dotenv())
 
 app = FastAPI()
 
@@ -13,11 +20,35 @@ class Post(BaseModel):
     title: str
     content: str 
     published: bool = True
-    rating: Optional[int] = None
+
+host = os.environ["HOST"]
+database = os.environ["DATABASE"]
+user=  os.environ["USER"]
+password = os.environ["PASSWORD"]
+
+while True:
+    try:
+        conn = psycopg2.connect(host=host, 
+                                database=database, 
+                                user=user, 
+                                password=password,
+                                cursor_factory=RealDictCursor)
+        cursor = conn.cursor()
+        print("Database connection was successful")
+        break
+    except Exception as error:
+        print("Connectung to database failed")
+        print("Error: ", error)
+        time.sleep(2)
+
 
 class Addition(BaseModel):
     a: int = 2
     b: int = 2
+
+
+class Data(BaseModel):
+    data: list[list[float]]
 
 my_posts = [{"title": "title of post 1", "content": "content of post 1", "id": 1},
             {"title": "favorite foods", "content": "I like pizza", "id": 2}]
@@ -50,6 +81,14 @@ def create_posts(post: Post):
 @app.post("/add")
 def add(added: Addition):
     return{"result": added.a + added.b}
+
+@app.post("/linreg")
+def linreg(data: Data):
+    with open('linear_regression_model.pkl', 'rb') as file:
+        loaded_model = pickle.load(file)
+    new_data = data.dict()['data']
+    predictions = loaded_model.predict(new_data).flatten()
+    return{"result": {"result": predictions.tolist()}}
 
 @app.get("/posts/{id}")
 def get_post(id: int, response: Response):

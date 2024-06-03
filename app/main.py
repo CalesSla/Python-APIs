@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, status, HTTPException
+from fastapi import FastAPI, Response, status, HTTPException, Depends
 from fastapi.params import Body
 from pydantic import BaseModel
 from typing import Optional
@@ -13,6 +13,12 @@ import os
 import time
 from dotenv import load_dotenv, find_dotenv
 _ = load_dotenv(find_dotenv())
+from sqlalchemy.orm import Session
+from . import models
+from .database import engine, SessionLocal, get_db
+
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
 
@@ -41,11 +47,9 @@ while True:
         print("Error: ", error)
         time.sleep(2)
 
-
 class Addition(BaseModel):
     a: int = 2
     b: int = 2
-
 
 class Data(BaseModel):
     data: list[list[float]]
@@ -62,22 +66,7 @@ def find_index_post(id):
     for i, p in enumerate(my_posts):
         if p['id'] == id:
             return i
-
-@app.get("/")
-def root():
-    return {"message": "Hello World"}
-
-@app.get("/posts")
-def get_posts():
-    return {"data": my_posts}
-
-@app.post("/posts", status_code=status.HTTP_201_CREATED)
-def create_posts(post: Post):
-    post_dict = post.dict()
-    post_dict["id"] = randrange(0, 1000000)
-    my_posts.append(post_dict)
-    return {"data": post_dict}
-
+        
 @app.post("/add")
 def add(added: Addition):
     return{"result": added.a + added.b}
@@ -90,36 +79,119 @@ def linreg(data: Data):
     predictions = loaded_model.predict(new_data).flatten()
     return{"result": {"result": predictions.tolist()}}
 
+@app.get("/")
+def root():
+    return {"message": "Hello World"}
+
+@app.get("/sqlalchemy")
+def test_posts(db: Session = Depends(get_db)):
+    posts = db.query(models.Post).all()
+
+    return {"data": posts}
+
+@app.get("/posts")
+def get_posts(db: Session = Depends(get_db)):
+    # cursor.execute(
+    # """
+    # SELECT * FROM posts
+    # """
+    # )
+    # posts = cursor.fetchall()
+
+    posts = db.query(models.Post).all()
+
+    return {"data": posts}
+
+@app.post("/posts", status_code=status.HTTP_201_CREATED)
+def create_posts(post: Post, db: Session = Depends(get_db)):
+    # cursor.execute(
+    #     """
+    #     INSERT
+    #     INTO posts
+    #     (title, content, published)
+    #     VALUES (%s, %s, %s)
+    #     RETURNING *
+    #     """,
+    #     (post.title, post.content, post.published)
+    #     )
+    # new_post = cursor.fetchone()
+    # conn.commit()
+
+    new_post = models.Post(**post.dict())
+    db.add(new_post)    
+    db.commit()
+    db.refresh(new_post)
+    return {"data": new_post}
+
 @app.get("/posts/{id}")
-def get_post(id: int, response: Response):
-    post = find_post(id)
+def get_post(id: int, response: Response, db: Session = Depends(get_db)):
+    # cursor.execute(
+    #     """
+    #     SELECT *
+    #     FROM posts
+    #     WHERE id = %s
+    #     RETURNING *
+    #     """,
+    #     (str(id))
+    # )
+    # post = cursor.fetchone()
+
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"post with id: {id} was not found")
+
     return {"post_detail": post}
 
 
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int):
-    index = find_index_post(id)
-    if index is None:
+def delete_post(id: int, db: Session = Depends(get_db)):
+    # cursor.execute(
+    #     """
+    #     DELETE
+    #     FROM posts
+    #     WHERE id = %s
+    #     RETURNING *
+    #     """,
+    #     (str(id))
+    # )
+    # deleted_post = cursor.fetchone()
+    # conn.commit()
+
+    post = db.query(models.Post).filter(models.Post.id == id)
+
+    if post.first() is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"post with id: {id} does not exist")
-    my_posts.pop(index)
+
+    post.delete(synchronize_session=False)
+    db.commit()
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @app.put("/posts/{id}")
-def update_post(id: int, post: Post):
+def update_post(id: int, updated_post: Post, db: Session = Depends(get_db)):
+    # cursor.execute(
+    #     """
+    #     UPDATE posts
+    #     SET title = %s, content = %s, published = %s
+    #     WHERE id = %s
+    #     RETURNING *
+    #     """,
+    #     (post.title, post.content, post.published, str(id))
+    # )
+    # updated_post = cursor.fetchone()
+    # conn.commit()
+    
+    post_query  = db.query(models.Post).filter(models.Post.id == id)
 
-    index = find_index_post(id)
-    base_url = "http://127.0.0.1:8000"
-    post_id = id
+    post = post_query.first()
 
-    response = dict(requests.get(f"{base_url}/posts/{post_id}").json()['post_detail'])
-    print(f"Existing post: {response}")
-    if index is None:
+    if post == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"post with id: {id} does not exist")
-    post_dict = post.dict()
-    post_dict["id"] = id
-    my_posts[index] = post_dict
-    print(f"New post: {my_posts[index]}")
-    return {"data": post_dict}
+
+    post_query.update(updated_post.dict(),  synchronize_session=False)
+
+    db.commit()
+    
+    return {"data": post_query.first()}

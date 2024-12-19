@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Response, status, HTTPException 
+from fastapi import FastAPI, Response, status, HTTPException, Depends
 from fastapi.params import Body
 from pydantic import BaseModel
 import pickle
@@ -8,11 +8,18 @@ from random import randrange
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
+load_dotenv()
 import os
 import time
-load_dotenv()
+from sqlalchemy.orm import Session
+from . import models
+from .database import engine, get_db
+
+
+models.Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+
 
 class Post(BaseModel):
     title: str
@@ -66,6 +73,11 @@ def root():
     return {"message": "Hello World!!!!"}
 
 
+@app.get("/sqlalchemy")
+def test_posts(db: Session = Depends(get_db)):
+    return {"status": "success"}
+
+
 @app.get("/posts")
 def get_posts():
     cursor.execute("""SELECT * 
@@ -93,12 +105,11 @@ def create_posts(post: Post):
 def predict(data: FeatureData):
     data = data.dict()
     features = np.array([data["x"]]).reshape(-1,1)
-    model_path = "trainedModels/trained_linreg_model.pkl"
+    model_path = "app/trainedModels/trained_linreg_model.pkl"
     with open(model_path, 'rb') as file:
         loaded_model = pickle.load(file)
     prediction = loaded_model.predict(features)
     prediction = prediction.flatten().tolist()
-    
     for i in range(features.shape[0]):
         cursor.execute("""
                         INSERT INTO predictions

@@ -12,6 +12,7 @@ load_dotenv()
 import os
 import time
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import insert
 from . import models
 from .database import engine, get_db
 
@@ -100,9 +101,7 @@ def create_posts(post: Post, db: Session = Depends(get_db)):
     #                 (post.title, post.content, post.published))
     # new_post = cursor.fetchone()
     # conn.commit()
-    new_post = models.Post(title=post.title,
-                           content=post.content,
-                           published=post.published)
+    new_post = models.Post(**post.dict())
     db.add(new_post)
     db.commit()
     db.refresh(new_post)
@@ -110,7 +109,7 @@ def create_posts(post: Post, db: Session = Depends(get_db)):
 
 
 @app.post("/predict", status_code=status.HTTP_201_CREATED)
-def predict(data: FeatureData):
+def predict(data: FeatureData, db: Session = Depends(get_db)):
     data = data.dict()
     features = np.array([data["x"]]).reshape(-1,1)
     model_path = "app/trainedModels/trained_linreg_model.pkl"
@@ -119,44 +118,56 @@ def predict(data: FeatureData):
     prediction = loaded_model.predict(features)
     prediction = prediction.flatten().tolist()
     for i in range(features.shape[0]):
-        cursor.execute("""
-                        INSERT INTO predictions
-                        (x, y)
-                        VALUES (%s, %s)
-                        ON CONFLICT (x) DO NOTHING
-                        RETURNING *
-                            """,
-                        (int(features[i][0]), float(prediction[i])))
-    conn.commit()
+    #     cursor.execute("""
+    #                     INSERT INTO predictions
+    #                     (x, y)
+    #                     VALUES (%s, %s)
+    #                     ON CONFLICT (x) DO NOTHING
+    #                     RETURNING *
+    #                         """,
+    #                     (int(features[i][0]), float(prediction[i])))
+        stmt = insert(models.Predictions).values(x=int(features[i][0]), y=float(prediction[i]))
+        stmt = stmt.on_conflict_do_nothing(index_elements=["x"])
+        db.execute(stmt)
+    # conn.commit()
+    db.commit()
     return {"prediction": prediction}
 
 
 @app.get("/posts/{id}")
-def get_post(id: int):
-    cursor.execute("""
-                    SELECT *
-                    FROM posts
-                    WHERE id = %s
-                    """, (str(id),))
-    post = cursor.fetchone()
+def get_post(id: int, db: Session = Depends(get_db)):
+    # cursor.execute("""
+    #                 SELECT *
+    #                 FROM posts
+    #                 WHERE id = %s
+    #                 """, (str(id),))
+    # post = cursor.fetchone()
+
+    post = db.query(models.Post).filter(models.Post.id == id).first()
+
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"post with id: {id} was not found")
     return {"post_detail": post}
 
 
 @app.delete("/posts/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int):
-    cursor.execute("""
-                    DELETE
-                    FROM posts
-                    WHERE id = %s
-                    RETURNING *
-                    """, (str(id),))
-    deleted_post = cursor.fetchone()
-    conn.commit()
+def delete_post(id: int, db: Session = Depends(get_db)):
+    # cursor.execute("""
+    #                 DELETE
+    #                 FROM posts
+    #                 WHERE id = %s
+    #                 RETURNING *
+    #                 """, (str(id),))
+    # deleted_post = cursor.fetchone()
+    # conn.commit()
+    post = db.query(models.Post).filter(models.Post.id == id)
 
-    if deleted_post == None:
+    if post.first() == None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"post with id {id} does not exist")
+    
+    post.delete(synchronize_session=False)
+    db.commit()
+    
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

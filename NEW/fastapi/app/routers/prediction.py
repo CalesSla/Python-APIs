@@ -7,17 +7,17 @@ from typing import List
 import pickle
 import numpy as np
 
-router = APIRouter()
+router = APIRouter(prefix="/predict", tags=["Predictions"])
 
 
 
-@router.get("/predict", response_model=List[schemas.Prediction])
+@router.get("/", response_model=List[schemas.Prediction])
 def get_predictions(db: Session = Depends(get_db)):
     predictions = db.query(models.Predictions).all()
     return predictions
 
 
-@router.post("/predict", status_code=status.HTTP_201_CREATED, response_model=schemas.PredictionsList)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.PredictionsList)
 def predict(data: schemas.Feature, db: Session = Depends(get_db)):
     data = data.dict()
     features = np.array([data["x"]]).reshape(-1,1)
@@ -44,7 +44,7 @@ def predict(data: schemas.Feature, db: Session = Depends(get_db)):
     return prediction
 
 
-@router.delete("/predict/{x}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{x}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_prediction(x: int, db: Session = Depends(get_db)):
     prediction = db.query(models.Predictions).filter(models.Predictions.x == x)
 
@@ -56,7 +56,7 @@ def delete_prediction(x: int, db: Session = Depends(get_db)):
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put("/predict/{x}", response_model=schemas.Prediction)
+@router.put("/{x}", response_model=schemas.Prediction)
 def update_prediction(x: int, updated_prediction: schemas.UpdatedPrediction, db: Session = Depends(get_db)):
     update_query = db.query(models.Predictions).filter(models.Predictions.x == x)
     prediction = update_query.first()

@@ -8,7 +8,7 @@ import os
 import time
 from . import models, schemas, utils
 from .database import engine, get_db
-from .routers import post, user, prediction
+from .routers import post, user, prediction, auth
 
 
 
@@ -58,6 +58,7 @@ def find_index_post(id):
 app.include_router(post.router)
 app.include_router(user.router)
 app.include_router(prediction.router)
+app.include_router(auth.router)
 
 
 

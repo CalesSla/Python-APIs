@@ -38,6 +38,16 @@ class UserOut(BaseModel):
     class Config:
         orm_mode = True
 
+
+# Authentication
+# ---------------------------------------------------------------
+
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
 # Predictions
 # ---------------------------------------------------------------
 

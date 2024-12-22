@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Response, status, HTTPException, Depends, APIRouter
-from .. import models, schemas
+from .. import models, schemas, oauth2
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 from ..database import get_db
@@ -12,13 +12,13 @@ router = APIRouter(prefix="/predict", tags=["Predictions"])
 
 
 @router.get("/", response_model=List[schemas.Prediction])
-def get_predictions(db: Session = Depends(get_db)):
+def get_predictions(db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
     predictions = db.query(models.Predictions).all()
     return predictions
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.PredictionsList)
-def predict(data: schemas.Feature, db: Session = Depends(get_db)):
+def predict(data: schemas.Feature, db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
     data = data.dict()
     features = np.array([data["x"]]).reshape(-1,1)
     model_path = "app/trainedModels/trained_linreg_model.pkl"
@@ -45,7 +45,7 @@ def predict(data: schemas.Feature, db: Session = Depends(get_db)):
 
 
 @router.delete("/{x}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_prediction(x: int, db: Session = Depends(get_db)):
+def delete_prediction(x: int, db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
     prediction = db.query(models.Predictions).filter(models.Predictions.x == x)
 
     if prediction.first() is None:
@@ -57,7 +57,7 @@ def delete_prediction(x: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{x}", response_model=schemas.Prediction)
-def update_prediction(x: int, updated_prediction: schemas.UpdatedPrediction, db: Session = Depends(get_db)):
+def update_prediction(x: int, updated_prediction: schemas.UpdatedPrediction, db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
     update_query = db.query(models.Predictions).filter(models.Predictions.x == x)
     prediction = update_query.first()
     updated_prediction = updated_prediction.dict()

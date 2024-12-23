@@ -8,7 +8,7 @@ router = APIRouter(prefix="/posts", tags=["Posts"])
 
 
 @router.get("/", response_model=List[schemas.Post])
-def get_posts(db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
+def get_posts(db: Session = Depends(get_db), current_user: int = Depends(oauth2.get_current_user)):
     # cursor.execute("""SELECT * 
     #                     FROM posts
     #                     """)
@@ -20,7 +20,7 @@ def get_posts(db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_c
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=schemas.Post)
 def create_posts(post: schemas.PostCreate, 
                  db: Session = Depends(get_db),
-                 user_id: int = Depends(oauth2.get_current_user)):
+                 current_user: int = Depends(oauth2.get_current_user)):
     # cursor.execute("""
     #                 INSERT INTO posts
     #                 (title, content, published)
@@ -38,7 +38,9 @@ def create_posts(post: schemas.PostCreate,
 
 
 @router.get("/{id}", response_model=schemas.Post)
-def get_post(id: int, db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
+def get_post(id: int, 
+             db: Session = Depends(get_db), 
+             current_user: int = Depends(oauth2.get_current_user)):
     # cursor.execute("""
     #                 SELECT *
     #                 FROM posts
@@ -54,7 +56,9 @@ def get_post(id: int, db: Session = Depends(get_db), user_id: int = Depends(oaut
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_post(id: int, db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
+def delete_post(id: int, 
+                db: Session = Depends(get_db), 
+                current_user: int = Depends(oauth2.get_current_user)):
     # cursor.execute("""
     #                 DELETE
     #                 FROM posts
@@ -75,7 +79,10 @@ def delete_post(id: int, db: Session = Depends(get_db), user_id: int = Depends(o
 
 
 @router.put("/{id}", response_model=schemas.Post)
-def update_post(id: int, updated_post: schemas.PostCreate, db: Session = Depends(get_db), user_id: int = Depends(oauth2.get_current_user)):
+def update_post(id: int, 
+                updated_post: schemas.PostCreate, 
+                db: Session = Depends(get_db), 
+                current_user: int = Depends(oauth2.get_current_user)):
     # cursor.execute("""
     #                UPDATE posts
     #                SET title = %s,

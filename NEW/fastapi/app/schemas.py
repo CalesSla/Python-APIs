@@ -1,6 +1,8 @@
 from pydantic import BaseModel, RootModel, EmailStr
 from datetime import datetime
 from typing import List, Optional
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 
 
 # Posts

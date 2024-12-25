@@ -1,6 +1,8 @@
 from pydantic import BaseModel, RootModel, EmailStr
 from datetime import datetime
 from typing import List, Optional
+from pydantic.types import conint
+
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
@@ -60,6 +62,15 @@ class Token(BaseModel):
 class TokenData(BaseModel):
     id: Optional[str] = None
 
+
+# Votes
+# ---------------------------------------------------------------
+
+
+class Vote(BaseModel):
+    post_id: int
+    dir: conint(le=1)
+    
 
 
 # Predictions
